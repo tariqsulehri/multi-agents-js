@@ -2,7 +2,6 @@ import { openai } from "../../infrastructure/llm/openai.client";
 import { RagService } from "../../rag/rag.service";
 import { ToolRouter } from "../../core/tools/tool.router";
 import { ToolExecutor } from "../../core/tools/tool.executor";
-import { ResponseCollector } from "../../orchestrator-v2/response.collector";
 
 export class SalesWorker {
     name = "sales";
@@ -13,31 +12,33 @@ export class SalesWorker {
     async run(
         message: string,
         userId: string,
-        requestId: string,
-        collector: ResponseCollector
-    ): Promise<void> {
+        requestId: string
+    ): Promise<string> {
 
-        // 1. Fetch knowledge from RAG
+        // 📚 RAG CONTEXT
         const ragContext = await RagService.search(message) || "";
 
-        // 2. Decide and Execute Tools
+        // 🧠 TOOL DECISION
         const toolDecision = await this.toolRouter.decide(message);
+
         let toolResult = "";
 
-        if (toolDecision.tool) {
-            try {
-                const result = await this.toolExecutor.execute(
-                    toolDecision.tool,
-                    toolDecision.arguments
-                );
-                toolResult = JSON.stringify(result);
-            } catch (error) {
-                console.error(`[SalesWorker] Tool execution failed:`, error);
-                toolResult = "Error: Could not retrieve data from tool.";
-            }
+        // 🧰 TOOL EXECUTION
+        if (toolDecision?.tool) {
+            const result = await this.toolExecutor.execute(
+                toolDecision.tool,
+                toolDecision.arguments || {}
+            );
+
+            toolResult = JSON.stringify(result || {});
         }
 
-        // 3. Generate Final Response with LLM
+        console.log("🔥 SALES WORKER ACTIVE");
+        console.log("MESSAGE:", message);
+        console.log("TOOL RESULT:", toolResult);
+        console.log("🧠 TOOL DECISION:", toolDecision);
+
+        // 🤖 FINAL RESPONSE
         const response = await openai.chat.completions.create({
             model: "gpt-4o-mini",
             messages: [
@@ -46,37 +47,27 @@ export class SalesWorker {
                     content: `
 You are a Sales Agent.
 
-KNOWLEDGE (RAG):
-${safeString(ragContext)}
+Use this context:
+
+RAG:
+${String(ragContext || "")}
 
 TOOL RESULT (TRUTH - MUST BE USED):
-${safeString(toolResult)}
+${String(toolResult || "")}
 
-IMPORTANT:
-- If a TOOL RESULT is provided, it is the absolute truth.
-- Use the data from TOOL RESULT to answer the user's question accurately.
-- If no tool result or RAG info is found, use your general knowledge but be honest.
-        `,
+IMPORTANT RULES:
+- If TOOL RESULT exists, use it
+- Never say "I cannot access order details" if TOOL RESULT exists
+- Always trust tool output
+                    `,
                 },
                 {
                     role: "user",
-                    content: message,
+                    content: String(message || ""),
                 },
             ],
         });
 
-        const finalResponse = response.choices[0]?.message?.content || "";
-
-        console.log(`[SalesWorker] Execution Complete for Request: ${requestId}`);
-        console.log(`- Tool Used: ${toolDecision.tool || "none"}`);
-        console.log(`- Final Response Length: ${finalResponse.length}`);
-
-        // 4. Collect results for aggregation
-        collector.add(requestId, finalResponse);
+        return response.choices[0]?.message?.content || "Sales response unavailable.";
     }
-}
-
-function safeString(value: any) {
-    if (!value) return "";
-    return String(value);
 }

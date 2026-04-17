@@ -12,45 +12,60 @@ export class PlannerAgent {
                 {
                     role: "system",
                     content: `
-You are a planning agent for a business AI system.
+You are a planning agent for a business AI workflow system.
 
-Decide which agent should handle the request.
+Your job is to decide the BUSINESS INTENT.
 
-Agents:
+IMPORTANT:
+Return business intent names, NOT worker names.
 
-1. sales:
-- ordering food
-- buy / purchase intent
-- create order
-- upsell
-- pizza, burger, food orders
+Valid intents:
 
-2. support:
-- complaints
-- refunds
-- issues
-- account problems
-- order not delivered
+1. order_food
+- user wants pizza
+- user wants burger
+- buying food
+- placing an order
+- purchase intent
 
-3. info:
-- timings / opening hours
+2. check_order
+- check order status
+- where is my order
+- track my order
+- order status
+
+3. faq
+- timings
+- opening hours
 - delivery time
-- menu questions
-- general business information
-- FAQs
+- business hours
+- general information
+- FAQ related questions
+
+4. support
+- complaints
+- refund requests
+- account problems
+- delivery issues
+- customer complaints
 
 RULES (VERY IMPORTANT):
-- "order", "buy", "want pizza" → sales
-- "check order", "order status" → sales
-- "complaint", "refund" → support
-- "timing", "hours", "delivery time", "when open" → info
+- "I want pizza" → order_food
+- "Check order 123" → check_order
+- "What are your timings?" → faq
+- "Delivery time?" → faq
+- "I want refund" → support
 
-If multiple intents exist, return multiple agents:
-["sales", "info"]
+If multiple intents exist, return multiple:
 
-Return ONLY JSON array:
-["sales"]
-`,
+Example:
+["order_food", "faq"]
+
+Return ONLY JSON array.
+
+Example:
+["faq"]
+                    `,
                 },
                 {
                     role: "user",
@@ -59,13 +74,17 @@ Return ONLY JSON array:
             ],
         });
 
-
         const text = response.choices[0]?.message?.content || "[]";
+
+        console.log("🧠 PLANNER RAW RESPONSE:", text);
 
         try {
             return JSON.parse(text);
-        } catch (e) {
-            return ["info"];
+        } catch (error) {
+            console.log("❌ Planner parse failed:", error);
+
+            // safer fallback
+            return ["faq"];
         }
     }
 }

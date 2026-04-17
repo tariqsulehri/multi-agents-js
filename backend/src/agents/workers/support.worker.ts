@@ -1,12 +1,13 @@
 import { openai } from "../../infrastructure/llm/openai.client";
-import { RagService } from "../../rag/rag.service";
 
 export class SupportWorker {
     name = "support";
 
-    async run(message: string, userId: string, requestId: string): Promise<string> {
-
-        const ragContext = await RagService.search(message);
+    async run(
+        message: string,
+        userId: string,
+        requestId: string
+    ): Promise<string> {
 
         const response = await openai.chat.completions.create({
             model: "gpt-4o-mini",
@@ -14,23 +15,25 @@ export class SupportWorker {
                 {
                     role: "system",
                     content: `
-You are a Support Agent.
+You are a customer support agent.
 
-Use this knowledge base:
-${ragContext}
+Help users with:
+- complaints
+- refunds
+- account problems
+- delivery issues
+- support requests
 
-Rules:
-- Be helpful and clear
-- Keep answers short
-          `,
+Be polite and helpful.
+                    `,
                 },
                 {
                     role: "user",
-                    content: message,
+                    content: String(message || ""),
                 },
             ],
         });
 
-        return response.choices[0]?.message?.content || "";
+        return response.choices[0]?.message?.content || "Support response unavailable.";
     }
 }

@@ -1,6 +1,6 @@
-import { AgentOrchestratorV2 } from "../orchestrator-v2/agent.orchestrator";
+import { AgentOrchestratorV3 } from "../orchestrator-v2/agent.orchestrator-v3";
 
-const orchestrator = new AgentOrchestratorV2();
+const orchestrator = new AgentOrchestratorV3();
 
 export const handleChat = async (req, res) => {
     const { message, userId } = req.body;
