@@ -1,10 +1,19 @@
-import { Request, Response } from 'express';
-import { agentRouter } from '../orchistrator/agent.router';
+import { AgentOrchestratorV2 } from "../orchestrator-v2/agent.orchestrator";
 
-export const handleChat = async (req: Request, res: Response) => {
+const orchestrator = new AgentOrchestratorV2();
+
+export const handleChat = async (req, res) => {
     const { message, userId } = req.body;
 
-    const response = await agentRouter.route(message, userId);
+    if (!message || !userId) {
+        return res.status(400).json({ error: "message and userId are required" });
+    }
 
-    res.json({ response });
+    try {
+        const response = await orchestrator.execute(message, userId);
+        res.json({ response });
+    } catch (error) {
+        console.error("Chat Error:", error);
+        res.status(500).json({ error: "Internal server error" });
+    }
 };
