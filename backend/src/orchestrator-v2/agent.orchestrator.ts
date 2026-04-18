@@ -3,7 +3,7 @@ import { SalesWorker } from "../agents/workers/sales.worker";
 import { SupportWorker } from "../agents/workers/support.worker";
 import { InfoWorker } from "../agents/workers/info.worker";
 import { AggregatorAgent } from "../agents/aggregator/aggregator.agent";
-import { ResponseCollector } from "./response.collector";
+import { ResponseCollector } from "../events/response.collector";
 import { v4 as uuidv4 } from "uuid";
 
 export class AgentOrchestratorV2 {
