@@ -1,36 +1,42 @@
+import { redis } from "../queue/redis.connection";
+
 export class ResponseCollector {
-    private store: Record<string, any[]> = {};
+    async add(requestId: string, data: any) {
+        const key = `workflow:${requestId}`;
 
-    add(requestId: string, data: any) {
-        if (!requestId || !data) return;
+        const existing = await redis.get(key);
 
-        if (!this.store[requestId]) {
-            this.store[requestId] = [];
-        }
+        const responses = existing
+            ? JSON.parse(existing)
+            : [];
 
-        // 🛡️ DEDUPLICATION (VERY IMPORTANT FOR RETRIES)
-        const exists = this.store[requestId].some(
-            (item) =>
-                item.agent === data.agent &&
-                item.response === data.response
+        responses.push(data);
+
+        await redis.set(
+            key,
+            JSON.stringify(responses),
+            "EX",
+            3600 // 1 hour expiry
         );
-
-        if (exists) {
-            return;
-        }
-
-        this.store[requestId].push(data);
     }
 
-    get(requestId: string) {
-        return this.store[requestId] || [];
+    async get(requestId: string) {
+        const key = `workflow:${requestId}`;
+
+        const data = await redis.get(key);
+
+        return data
+            ? JSON.parse(data)
+            : [];
     }
 
-    count(requestId: string) {
-        return this.get(requestId).length;
+    async count(requestId: string) {
+        const results = await this.get(requestId);
+        return results.length;
     }
 
-    clear(requestId: string) {
-        delete this.store[requestId];
+    async clear(requestId: string) {
+        const key = `workflow:${requestId}`;
+        await redis.del(key);
     }
 }

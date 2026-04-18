@@ -1,7 +1,6 @@
 import { WorkflowDefinition } from "./workflow.types";
-import { EventBus } from "../events/event.bus";
-import { EVENTS } from "../events/events.constants";
 import { ResponseCollector } from "../events/response.collector";
+import { AgentQueue } from "../queue/agent.queue";
 
 export class WorkflowEngine {
     constructor(private collector: ResponseCollector) {
@@ -14,39 +13,53 @@ export class WorkflowEngine {
         userId: string,
         requestId: string
     ) {
-
-
         const startTime = Date.now();
+
         console.log(`🚀 WORKFLOW START | requestId=${requestId}`);
 
-        // 1. publish all workflow steps (PARALLEL SAFE)
-        const publishPromises = workflow.steps.map((step) => {
+        // 1. Queue all workflow steps
+        const publishPromises = workflow.steps.map(async (step) => {
             const stepStart = Date.now();
-            EventBus.publish(EVENTS.AGENT_EXECUTE, {
-                requestId,
-                agent: step.agent,
-                message,
-                userId,
-            })
+
+            await AgentQueue.add(
+                "execute-agent",
+                {
+                    requestId,
+                    agent: step.agent,
+                    message,
+                    userId,
+                },
+                {
+                    attempts: 3,
+                    backoff: {
+                        type: "exponential",
+                        delay: 2000,
+                    },
+                    removeOnComplete: true,
+                    removeOnFail: false,
+                }
+            );
 
             const stepTime = Date.now() - stepStart;
+
             console.log(
-                `⚡ STEP EXECUTED | agent=${step.agent} | time=${stepTime}ms`
+                `⚡ STEP QUEUED | agent=${step.agent} | time=${stepTime}ms`
             );
         });
 
         await Promise.all(publishPromises);
 
-        // 2. wait for responses (reliable wait loop)
+        // 2. Wait for worker responses
         const results = await this.waitForResponses(
             requestId,
             workflow.steps.length
         );
 
-        // 3. cleanup
-        this.collector.clear(requestId);
+        // 3. Cleanup workflow state
+        await this.collector.clear(requestId);
 
         const totalTime = Date.now() - startTime;
+
         console.log(
             `✅ WORKFLOW COMPLETE | requestId=${requestId} | time=${totalTime}ms`
         );
@@ -64,22 +77,25 @@ export class WorkflowEngine {
         let waited = 0;
 
         while (waited < timeout) {
-            const count = this.collector.count(requestId);
+            const count = await this.collector.count(requestId);
 
             if (count >= expectedCount) {
                 break;
             }
 
-            await new Promise((r) => setTimeout(r, interval));
+            await new Promise((resolve) =>
+                setTimeout(resolve, interval)
+            );
+
             waited += interval;
         }
 
-        const results = this.collector.get(requestId) || [];
+        const results =
+            (await this.collector.get(requestId)) || [];
 
-        // 🧠 IMPORTANT: mark partial completion if needed
         if (results.length < expectedCount) {
             console.warn(
-                `⚠️ Workflow timeout: expected ${expectedCount}, got ${results.length}`
+                `⚠️ Workflow timeout | expected=${expectedCount} | received=${results.length}`
             );
         }
 

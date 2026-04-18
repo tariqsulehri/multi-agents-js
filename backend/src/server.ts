@@ -7,38 +7,30 @@ import { GetOrderTool } from "./core/tools/order.tool";
 import { CreateOrderTool } from "./core/tools/create_order.tool";
 import { FAQTool } from "./core/tools/faq.tool";
 
-// Workers (IMPORTANT for Event Bus subscriptions)
-import { InfoWorker } from "./agents/workers/info.worker";
+// Temporary EventBus Workers
 import { SalesWorker } from "./agents/workers/sales.worker";
 import { SupportWorker } from "./agents/workers/support.worker";
+
+// IMPORTANT: Queue Consumer Bootstrap
+import "./agents/workers/info.consumer";
 
 dotenv.config();
 
 /**
- * -----------------------------------
  * Register Tools
- * -----------------------------------
  */
 ToolRegistry.register(GetOrderTool);
 ToolRegistry.register(CreateOrderTool);
 ToolRegistry.register(FAQTool);
 
 /**
- * -----------------------------------
- * Bootstrap Event-Driven Workers
- * VERY IMPORTANT:
- * Instantiating workers activates
- * EventBus subscriptions
- * -----------------------------------
+ * Temporary workers
  */
-new InfoWorker();
 new SalesWorker();
 new SupportWorker();
 
 /**
- * -----------------------------------
- * Start Server
- * -----------------------------------
+ * Start API Server
  */
 const PORT = process.env.PORT || 3000;
 
